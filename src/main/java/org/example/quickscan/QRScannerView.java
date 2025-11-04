@@ -15,9 +15,11 @@ import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
 
 import javax.imageio.ImageIO;
+import java.awt.Desktop;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
+import java.net.URI;
 import java.util.EnumMap;
 import java.util.Map;
 
@@ -25,7 +27,7 @@ public class QRScannerView extends VBox {
 
     private final MainView mainView;
     private final ImageView qrImageView;
-    private final TextArea resultText;
+    private final VBox resultBox;
     private final Label statusLabel;
 
     public QRScannerView(MainView mainView) {
@@ -60,16 +62,11 @@ public class QRScannerView extends VBox {
         
         // Result area
         Label resultLabel = new Label("Scan Result:");
-        resultText = new TextArea();
-        resultText.setEditable(false);
-        resultText.setWrapText(true);
-        resultText.setPrefRowCount(5);
-        resultText.setStyle("-fx-text-fill: black;");
-        resultText.setStyle("-fx-font-size: 16px; -fx-text-fill: black;");
+        resultBox = new VBox();
+        resultBox.setAlignment(Pos.CENTER);
+        resultBox.setSpacing(10);
 
-
-
-        VBox.setVgrow(resultText, Priority.ALWAYS);
+        VBox.setVgrow(resultBox, Priority.ALWAYS);
         
         // Status label
         statusLabel = new Label("");
@@ -82,7 +79,7 @@ public class QRScannerView extends VBox {
                 uploadButton,
                 qrImageView,
                 resultLabel,
-                resultText,
+                resultBox,
                 statusLabel
         );
     }
@@ -106,12 +103,31 @@ public class QRScannerView extends VBox {
                 String result = decodeQRCode(bufferedImage);
                 
                 if (result != null) {
-                    resultText.setText(result);
+                    resultBox.getChildren().clear();
+                    if (result.matches("^(https?|ftp)://.*$")) {
+                        Hyperlink link = new Hyperlink(result);
+                        link.setOnAction(e -> {
+                            try {
+                                Desktop.getDesktop().browse(new URI(result));
+                            } catch (Exception ex) {
+                                statusLabel.setText("Error opening link: " + ex.getMessage());
+                                statusLabel.getStyleClass().add("error-text");
+                            }
+                        });
+                        resultBox.getChildren().add(link);
+                    } else {
+                        TextArea resultText = new TextArea(result);
+                        resultText.setEditable(false);
+                        resultText.setWrapText(true);
+                        resultText.setPrefRowCount(5);
+                        resultBox.getChildren().add(resultText);
+                    }
+
                     statusLabel.setText("QR Code scanned successfully");
                     statusLabel.getStyleClass().removeAll("error-text");
                     statusLabel.getStyleClass().add("success-text");
                 } else {
-                    resultText.setText("");
+                    resultBox.getChildren().clear();
                     statusLabel.setText("No QR Code found in the image");
                     statusLabel.getStyleClass().add("error-text");
                 }
