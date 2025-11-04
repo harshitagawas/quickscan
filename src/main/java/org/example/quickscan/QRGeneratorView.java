@@ -8,9 +8,12 @@ import com.google.zxing.qrcode.QRCodeWriter;
 import javafx.embed.swing.SwingFXUtils;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.scene.SnapshotParameters;
 import javafx.scene.control.*;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
+import javafx.scene.input.Clipboard;
+import javafx.scene.input.ClipboardContent;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
@@ -22,7 +25,6 @@ import java.awt.Desktop;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
-import java.net.URI;
 
 public class QRGeneratorView extends VBox {
 
@@ -41,11 +43,9 @@ public class QRGeneratorView extends VBox {
         this.setAlignment(Pos.TOP_CENTER);
         this.getStyleClass().add("generator-view");
 
-        // Header
         Label headerLabel = new Label("Generate QR Code");
         headerLabel.getStyleClass().add("section-header");
 
-        // Back button
         Button backButton = new Button("Back");
         backButton.getStyleClass().add("back-button");
         backButton.setOnAction(e -> mainView.showMainOptions());
@@ -53,9 +53,7 @@ public class QRGeneratorView extends VBox {
         HBox headerBox = new HBox(10, backButton, headerLabel);
         headerBox.setAlignment(Pos.CENTER_LEFT);
 
-        // Input type selection
         inputTypeGroup = new ToggleGroup();
-
         RadioButton textOption = new RadioButton("Text");
         textOption.setToggleGroup(inputTypeGroup);
         textOption.setSelected(true);
@@ -68,115 +66,104 @@ public class QRGeneratorView extends VBox {
         HBox optionsBox = new HBox(20, textOption, urlOption);
         optionsBox.setAlignment(Pos.CENTER);
 
-        // Content input
         Label contentLabel = new Label("Enter content:");
         contentInput = new TextArea();
         contentInput.setPromptText("Enter text or URL to generate QR code");
         contentInput.setPrefRowCount(5);
         contentInput.setWrapText(true);
         contentInput.setStyle("-fx-text-fill: black;");
-
         VBox.setVgrow(contentInput, Priority.ALWAYS);
 
-        // Color pickers
         foregroundColorPicker = new ColorPicker(Color.BLACK);
         backgroundColorPicker = new ColorPicker(Color.WHITE);
-
-        HBox colorPickerBox = new HBox(20, new Label("Foreground Color:"), foregroundColorPicker, new Label("Background Color:"), backgroundColorPicker);
+        HBox colorPickerBox = new HBox(20,
+                new Label("Foreground:"), foregroundColorPicker,
+                new Label("Background:"), backgroundColorPicker);
         colorPickerBox.setAlignment(Pos.CENTER);
 
-        // Generate button
-        Button generateButton = new Button("Generate QR Code");
+        // Buttons
+        Button generateButton = new Button("Generate QR");
         generateButton.getStyleClass().add("action-button");
         generateButton.setOnAction(e -> generateQRCode());
 
-        // Save button
-        Button saveButton = new Button("Save QR Code");
+        Button saveButton = new Button("Save QR");
         saveButton.getStyleClass().add("action-button");
         saveButton.setOnAction(e -> saveQRCode());
 
-        // Share button
-        Button shareButton = new Button("Share QR Code");
+        Button shareButton = new Button("Share QR");
         shareButton.getStyleClass().add("action-button");
         shareButton.setOnAction(e -> shareQRCode());
 
-        HBox actionBox = new HBox(20, generateButton, saveButton, shareButton);
+        Button copyButton = new Button("Copy QR");
+        copyButton.getStyleClass().add("action-button");
+        copyButton.setOnAction(e -> copyQRCodeToClipboard());
+
+        HBox actionBox = new HBox(20, generateButton, saveButton, shareButton, copyButton);
         actionBox.setAlignment(Pos.CENTER);
 
-        // QR Code display
         qrImageView = new ImageView();
         qrImageView.setFitWidth(250);
         qrImageView.setFitHeight(250);
         qrImageView.setPreserveRatio(true);
 
-        // Status label
         statusLabel = new Label("");
         statusLabel.getStyleClass().add("status-label");
 
-        // Add all components
         this.getChildren().addAll(
-                headerBox,
-                new Separator(),
-                optionsBox,
-                contentLabel,
-                contentInput,
-                colorPickerBox,
-                actionBox,
-                qrImageView,
-                statusLabel
+                headerBox, new Separator(),
+                optionsBox, contentLabel, contentInput,
+                colorPickerBox, actionBox, qrImageView, statusLabel
         );
     }
 
     private void generateQRCode() {
         String content = contentInput.getText().trim();
-
         if (content.isEmpty()) {
-            statusLabel.setText("Please enter content to generate QR code");
-            statusLabel.getStyleClass().add("error-text");
+            showStatus("Please enter content to generate QR code", true);
             return;
         }
 
-        // Validate URL if URL option is selected
         RadioButton selectedOption = (RadioButton) inputTypeGroup.getSelectedToggle();
         if (selectedOption.getText().equals("URL") && !content.matches("^(https?|ftp)://.*$")) {
             content = "http://" + content;
         }
 
-        Color foregroundColor = foregroundColorPicker.getValue();
-        Color backgroundColor = backgroundColorPicker.getValue();
+        Color fg = foregroundColorPicker.getValue();
+        Color bg = backgroundColorPicker.getValue();
+
+        double contrast = Math.abs(fg.getBrightness() - bg.getBrightness());
+        if (contrast < 0.5) {
+            showStatus("⚠️ Low contrast! Scanner may fail. Use dark text & light background.", true);
+        }
 
         try {
-            QRCodeWriter qrCodeWriter = new QRCodeWriter();
-            BitMatrix bitMatrix = qrCodeWriter.encode(content, BarcodeFormat.QR_CODE, 300, 300);
-            BufferedImage bufferedImage = toBufferedImage(bitMatrix, foregroundColor, backgroundColor);
-            Image image = SwingFXUtils.toFXImage(bufferedImage, null);
+            QRCodeWriter writer = new QRCodeWriter();
+            BitMatrix matrix = writer.encode(content, BarcodeFormat.QR_CODE, 300, 300);
+            BufferedImage img = toBufferedImage(matrix, fg, bg);
+            Image fxImage = SwingFXUtils.toFXImage(img, null);
 
-            qrImageView.setImage(image);
-            statusLabel.setText("QR Code generated successfully");
-            statusLabel.getStyleClass().removeAll("error-text");
-            statusLabel.getStyleClass().add("success-text");
+            qrImageView.setImage(fxImage);
+            showStatus("QR Code generated successfully ✅", false);
 
         } catch (WriterException e) {
-            statusLabel.setText("Error generating QR code: " + e.getMessage());
-            statusLabel.getStyleClass().add("error-text");
+            showStatus("Error generating QR: " + e.getMessage(), true);
         }
     }
 
-    private BufferedImage toBufferedImage(BitMatrix matrix, Color foreground, Color background) {
+    private BufferedImage toBufferedImage(BitMatrix matrix, Color fg, Color bg) {
         int width = matrix.getWidth();
         int height = matrix.getHeight();
         BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
 
-        // ✅ Fixed bitwise operation — cast before shifting
-        int onColor = ((int)(foreground.getOpacity() * 255) << 24)
-                | ((int)(foreground.getRed() * 255) << 16)
-                | ((int)(foreground.getGreen() * 255) << 8)
-                | (int)(foreground.getBlue() * 255);
+        int onColor = ((int)(fg.getOpacity() * 255) << 24)
+                | ((int)(fg.getRed() * 255) << 16)
+                | ((int)(fg.getGreen() * 255) << 8)
+                | (int)(fg.getBlue() * 255);
 
-        int offColor = ((int)(background.getOpacity() * 255) << 24)
-                | ((int)(background.getRed() * 255) << 16)
-                | ((int)(background.getGreen() * 255) << 8)
-                | (int)(background.getBlue() * 255);
+        int offColor = ((int)(bg.getOpacity() * 255) << 24)
+                | ((int)(bg.getRed() * 255) << 16)
+                | ((int)(bg.getGreen() * 255) << 8)
+                | (int)(bg.getBlue() * 255);
 
         for (int x = 0; x < width; x++) {
             for (int y = 0; y < height; y++) {
@@ -188,57 +175,72 @@ public class QRGeneratorView extends VBox {
 
     private void shareQRCode() {
         if (qrImageView.getImage() == null) {
-            statusLabel.setText("Generate a QR code first");
-            statusLabel.getStyleClass().add("error-text");
+            showStatus("Generate a QR code first", true);
             return;
         }
 
         try {
-            File tempFile = File.createTempFile("qrcode", ".png");
-            tempFile.deleteOnExit();
+            File tempFile = File.createTempFile("QuickScan_QR_", ".png");
             BufferedImage bufferedImage = SwingFXUtils.fromFXImage(qrImageView.getImage(), null);
             ImageIO.write(bufferedImage, "png", tempFile);
 
             if (Desktop.isDesktopSupported()) {
-                Desktop desktop = Desktop.getDesktop();
-                if (desktop.isSupported(Desktop.Action.MAIL)) {
-                    String command = "mailto:?subject=QR%20Code&body=See%20attached%20QR%20code.&attachment=" + tempFile.getAbsolutePath();
-                    desktop.mail(new URI(command));
-                }
+                Desktop.getDesktop().open(tempFile); // Opens in Photos / default image viewer
+                showStatus("QR Code opened in Photos — share from there 📷", false);
+            } else {
+                showStatus("Desktop not supported on this system", true);
             }
 
-        } catch (Exception e) {
-            statusLabel.setText("Error sharing QR code: " + e.getMessage());
-            statusLabel.getStyleClass().add("error-text");
+        } catch (IOException e) {
+            showStatus("Error opening QR image: " + e.getMessage(), true);
         }
+    }
+
+    private void copyQRCodeToClipboard() {
+        if (qrImageView.getImage() == null) {
+            showStatus("Generate a QR code first", true);
+            return;
+        }
+
+        Clipboard clipboard = Clipboard.getSystemClipboard();
+        ClipboardContent content = new ClipboardContent();
+
+        SnapshotParameters params = new SnapshotParameters();
+        params.setFill(Color.TRANSPARENT);
+
+        Image snapshot = qrImageView.snapshot(params, null);
+        content.putImage(snapshot);
+        clipboard.setContent(content);
+
+        showStatus("QR Code copied to clipboard 📋 — paste anywhere!", false);
     }
 
     private void saveQRCode() {
         if (qrImageView.getImage() == null) {
-            statusLabel.setText("Generate a QR code first");
-            statusLabel.getStyleClass().add("error-text");
+            showStatus("Generate a QR code first", true);
             return;
         }
 
-        FileChooser fileChooser = new FileChooser();
-        fileChooser.setTitle("Save QR Code");
-        fileChooser.getExtensionFilters().add(
-                new FileChooser.ExtensionFilter("PNG Image", "*.png")
-        );
-        fileChooser.setInitialFileName("qrcode.png");
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Save QR Code");
+        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("PNG Image", "*.png"));
+        chooser.setInitialFileName("qrcode.png");
 
-        File file = fileChooser.showSaveDialog(this.getScene().getWindow());
+        File file = chooser.showSaveDialog(this.getScene().getWindow());
         if (file != null) {
             try {
                 BufferedImage bufferedImage = SwingFXUtils.fromFXImage(qrImageView.getImage(), null);
                 ImageIO.write(bufferedImage, "png", file);
-                statusLabel.setText("QR Code saved to: " + file.getAbsolutePath());
-                statusLabel.getStyleClass().removeAll("error-text");
-                statusLabel.getStyleClass().add("success-text");
+                showStatus("QR Code saved: " + file.getAbsolutePath(), false);
             } catch (IOException e) {
-                statusLabel.setText("Error saving QR code: " + e.getMessage());
-                statusLabel.getStyleClass().add("error-text");
+                showStatus("Error saving: " + e.getMessage(), true);
             }
         }
+    }
+
+    private void showStatus(String msg, boolean error) {
+        statusLabel.setText(msg);
+        statusLabel.getStyleClass().removeAll("error-text", "success-text");
+        statusLabel.getStyleClass().add(error ? "error-text" : "success-text");
     }
 }
