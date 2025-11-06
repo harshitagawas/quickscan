@@ -137,3 +137,42 @@
   -fx-font-size: 16px;
   -fx-padding: 5px;
 }
+
+.copy-button {
+    -fx-background-color: #0078d7;
+    -fx-text-fill: white;
+    -fx-font-size: 14px;
+    -fx-padding: 8px 15px;
+    -fx-background-radius: 5px;
+    -fx-cursor: hand;
+}
+
+.copy-button:hover {
+    -fx-background-color: #0086f0;
+}
+
+.password-field {
+    -fx-background-color: #2d2d2d;
+    -fx-text-fill: #e0e0e0;
+    -fx-highlight-fill: #0078d7;
+    -fx-border-color: #3d3d3d;
+    -fx-border-radius: 3px;
+}
+
+.password-field:focused {
+    -fx-border-color: #0078d7;
+}
+
+.checkbox {
+    -fx-text-fill: #e0e0e0;
+}
+
+.checkbox .box {
+    -fx-background-color: #2d2d2d;
+    -fx-border-color: #3d3d3d;
+    -fx-border-radius: 3px;
+}
+
+.checkbox:selected .box .mark {
+    -fx-background-color: #00bfff;
+}
