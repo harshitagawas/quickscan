@@ -104,14 +104,16 @@ public class QRGeneratorView extends VBox {
         passwordField.setPromptText("Enter password (optional)");
         passwordField.setVisible(false);
         passwordField.setManaged(false);
-        passwordField.setStyle("-fx-text-fill: black;");
+        passwordField.setStyle("-fx-text-fill: white;");
 
         passwordProtectionCheckBox = new CheckBox("Password Protection");
+        passwordProtectionCheckBox.setStyle("-fx-text-fill: white;");
         passwordProtectionCheckBox.getStyleClass().add("input-option");
         passwordProtectionCheckBox.setOnAction(e -> {
             boolean selected = passwordProtectionCheckBox.isSelected();
             passwordField.setVisible(selected);
             passwordField.setManaged(selected);
+
         });
 
         HBox passwordBox = new HBox(10, passwordProtectionCheckBox, passwordField);
