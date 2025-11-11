@@ -101,7 +101,6 @@ public class QRScannerView extends VBox {
 
     /** ---------- DRAG & DROP SUPPORT ---------- */
     private void setupDragAndDrop() {
-        // Whole VBox accepts drops
         this.setOnDragOver(event -> {
             if (event.getDragboard().hasFiles()) {
                 event.acceptTransferModes(TransferMode.COPY);
@@ -146,14 +145,13 @@ public class QRScannerView extends VBox {
             }
 
             displayResult(result);
+
+            // Save history (offline)
             HistoryManager.getInstance().ensureHistoryLocationSet(this);
             HistoryManager.getInstance().addHistoryEntry(
                     "Scanned",
                     determineContentType(result),
                     result,
-                    "N/A",
-                    "N/A",
-                    null,
                     false
             );
 
@@ -272,15 +270,15 @@ public class QRScannerView extends VBox {
                 displayResult(decrypted);
                 showSuccess("QR Code decrypted successfully ✅");
 
+                // Save decrypted entry in history
+                HistoryManager.getInstance().ensureHistoryLocationSet(this);
                 HistoryManager.getInstance().addHistoryEntry(
                         "Scanned (Decrypted)",
                         determineContentType(decrypted),
                         decrypted,
-                        "N/A",
-                        "N/A",
-                        null,
                         true
                 );
+
             } catch (Exception e) {
                 showError("Invalid password or decryption error ❌");
             }
